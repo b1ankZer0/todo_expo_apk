@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "test",
-    "slug": "test",
+    "name": "Weather Todo",
+    "slug": "Weather Todo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/9329651.png",
     "scheme": "test",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,12 +14,17 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/9329651.png",
+        "backgroundImage": "./assets/images/9329651.png",
+        "monochromeImage": "./assets/images/9329651.png"
       },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.masashikbd.test"
     },
     "web": {
       "output": "static",
@@ -43,6 +48,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b7625a2d-fe78-425b-bf4e-f94f21eb8238"
+      }
     }
   }
 }
