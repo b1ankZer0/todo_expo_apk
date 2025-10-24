@@ -1,7 +1,6 @@
-import { useDb } from "@/lib/appwrite";
 import { useAuth } from "@/lib/auth-context";
+import { useDb } from "@/lib/dbActions";
 import { Ionicons } from "@expo/vector-icons";
-import { Query } from "appwrite";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Query } from "react-native-appwrite";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Interface based on your database schema

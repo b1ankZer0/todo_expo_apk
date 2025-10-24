@@ -10,13 +10,6 @@ export default function RootLayout() {
   const route = useRouter();
   const { signOut } = useAuth();
 
-  const goToTodo = (date: string) => {
-    route.push({
-      pathname: "/Todos/addTodo",
-      params: { date: date },
-    });
-  };
-
   return (
     <Tabs
       screenOptions={{

@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { localStorages } from "./localStorage";
 
 export interface LocationCoords {
   latitude: number;
@@ -54,15 +55,159 @@ export const POPULAR_CITIES: CitySearchResult[] = [
 /**
  * Request location permissions and get current location
  */
-export const getCurrentLocation = async (): Promise<{
+
+interface SavedLocation {
+  location: LocationCoords;
+  locationName: string;
+  timestamp: number;
+}
+
+const LOCATION_STORAGE_KEY = "saved_location";
+
+/**
+ * Check if location services are enabled and permission is granted
+ */
+export const isGPSEnabled = async (): Promise<boolean> => {
+  try {
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") {
+      return false;
+    }
+
+    // Check if location services are actually enabled
+    const isEnabled = await Location.hasServicesEnabledAsync();
+    return isEnabled;
+  } catch (error) {
+    console.error("Error checking GPS status:", error);
+    return false;
+  }
+};
+
+/**
+ * Get current location without requesting permission (only if already granted)
+ */
+export const getCurrentLocationIfEnabled = async (): Promise<{
   location: LocationCoords | null;
   locationName: string;
   error?: string;
 }> => {
   try {
+    const gpsEnabled = await isGPSEnabled();
+
+    if (!gpsEnabled) {
+      // GPS not enabled, return cached location
+      const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+      if (savedLocation) {
+        return {
+          location: savedLocation.location,
+          locationName: savedLocation.locationName,
+        };
+      }
+      return {
+        location: null,
+        locationName: "",
+        error: "GPS not enabled",
+      };
+    }
+
+    // GPS is enabled, get current location
+    try {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const location: LocationCoords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+
+      const address = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+
+      const locationName =
+        address && address[0]
+          ? address[0].city || address[0].region || "Current Location"
+          : "Current Location";
+
+      // Save the location for future use
+      const locationData: SavedLocation = {
+        location,
+        locationName,
+        timestamp: Date.now(),
+      };
+      await localStorages.saveData(LOCATION_STORAGE_KEY, locationData);
+
+      return { location, locationName };
+    } catch (locationError) {
+      // GPS error, use saved location
+      console.log("GPS error, using saved location:", locationError);
+      const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+
+      if (savedLocation) {
+        return {
+          location: savedLocation.location,
+          locationName: savedLocation.locationName,
+        };
+      }
+
+      throw locationError;
+    }
+  } catch (error) {
+    console.error("Error getting location:", error);
+
+    // Last resort: try saved location
+    const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+    if (savedLocation) {
+      return {
+        location: savedLocation.location,
+        locationName: savedLocation.locationName,
+        error: "Using saved location (GPS unavailable)",
+      };
+    }
+
+    return {
+      location: null,
+      locationName: "",
+      error: "Failed to get current location",
+    };
+  }
+};
+
+export const getCurrentLocation = async (
+  skipGPSIfCached: boolean = false
+): Promise<{
+  location: LocationCoords | null;
+  locationName: string;
+  error?: string;
+  isFromCache?: boolean;
+}> => {
+  try {
+    // If skipGPSIfCached is true, check for cached location first
+    if (skipGPSIfCached) {
+      const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+      if (savedLocation) {
+        return {
+          location: savedLocation.location,
+          locationName: savedLocation.locationName,
+          isFromCache: true,
+        };
+      }
+    }
+
     const { status } = await Location.requestForegroundPermissionsAsync();
 
     if (status !== "granted") {
+      // Try to get saved location if permission not granted
+      const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+      if (savedLocation) {
+        return {
+          location: savedLocation.location,
+          locationName: savedLocation.locationName,
+          isFromCache: true,
+        };
+      }
       return {
         location: null,
         locationName: "",
@@ -70,31 +215,107 @@ export const getCurrentLocation = async (): Promise<{
       };
     }
 
-    const loc = await Location.getCurrentPositionAsync({});
-    const location: LocationCoords = {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    };
+    // Permission granted, try to get current location
+    try {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
 
-    const address = await Location.reverseGeocodeAsync({
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    });
+      const location: LocationCoords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
 
-    const locationName =
-      address && address[0]
-        ? address[0].city || address[0].region || "Current Location"
-        : "Current Location";
+      const address = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
 
-    return { location, locationName };
+      const locationName =
+        address && address[0]
+          ? address[0].city || address[0].region || "Current Location"
+          : "Current Location";
+
+      // Save the location for future use
+      const locationData: SavedLocation = {
+        location,
+        locationName,
+        timestamp: Date.now(),
+      };
+      await localStorages.saveData(LOCATION_STORAGE_KEY, locationData);
+
+      return { location, locationName, isFromCache: false };
+    } catch (locationError) {
+      // GPS is off or location unavailable, use saved location
+      console.log("GPS unavailable, using saved location:", locationError);
+      const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+
+      if (savedLocation) {
+        return {
+          location: savedLocation.location,
+          locationName: savedLocation.locationName,
+          isFromCache: true,
+        };
+      }
+
+      throw locationError;
+    }
   } catch (error) {
     console.error("Error getting location:", error);
+
+    // Last resort: try saved location
+    const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+    if (savedLocation) {
+      return {
+        location: savedLocation.location,
+        locationName: savedLocation.locationName,
+        error: "Using saved location (GPS unavailable)",
+        isFromCache: true,
+      };
+    }
+
     return {
       location: null,
       locationName: "",
       error: "Failed to get current location",
     };
   }
+};
+
+/**
+ * Save manually selected location to cache
+ */
+export const saveSelectedLocation = async (
+  location: LocationCoords,
+  locationName: string
+): Promise<void> => {
+  const locationData: SavedLocation = {
+    location,
+    locationName,
+    timestamp: Date.now(),
+  };
+  await localStorages.saveData(LOCATION_STORAGE_KEY, locationData);
+};
+
+/**
+ * Get saved location from cache
+ */
+export const getSavedLocation = async (): Promise<SavedLocation | null> => {
+  return await localStorages.getData(LOCATION_STORAGE_KEY);
+};
+
+// Optional: Helper function to clear saved location
+export const clearSavedLocation = async () => {
+  await localStorages.removeData(LOCATION_STORAGE_KEY);
+};
+
+// Optional: Helper function to get the age of saved location
+export const getSavedLocationAge = async (): Promise<number | null> => {
+  const savedLocation = await localStorages.getData(LOCATION_STORAGE_KEY);
+  if (savedLocation && savedLocation.timestamp) {
+    return Date.now() - savedLocation.timestamp;
+  }
+  return null;
 };
 
 /**

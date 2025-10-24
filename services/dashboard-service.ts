@@ -1,5 +1,5 @@
-import { TodoDb } from "@/lib/appwrite";
-import { Query } from "appwrite";
+import { TodoDb } from "@/lib/dbActions";
+import { Query } from "react-native-appwrite";
 
 // Types for your todos
 export interface Todo {

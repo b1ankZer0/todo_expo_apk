@@ -2,21 +2,18 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Button } from "react-native-paper";
+import "react-native-url-polyfill/auto";
 
 // Import services
-import { useDb } from "@/lib/appwrite";
 import { useAuth } from "@/lib/auth-context";
+import { useDb } from "@/lib/dbActions";
 import {
   fetchWeatherForMonth,
   getWeatherEmoji,
@@ -24,13 +21,15 @@ import {
 } from "@/services/weatherService";
 import { DashboardService } from "../../services/dashboard-service";
 import {
-  CitySearchResult,
-  filterCities,
   getCurrentLocation,
+  getCurrentLocationIfEnabled,
+  getSavedLocation,
+  isGPSEnabled,
   LocationCoords,
-  POPULAR_CITIES,
-  searchCitiesFromAPI,
 } from "../../services/locationService";
+
+// Import the new CitySelect component
+import CitySelect from "../../lib/CitySelect";
 
 export default function Index() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -39,10 +38,6 @@ export default function Index() {
   const [locationName, setLocationName] = useState("");
   const [loading, setLoading] = useState(true);
   const [showLocationModal, setShowLocationModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filteredCities, setFilteredCities] =
-    useState<CitySearchResult[]>(POPULAR_CITIES);
-  const [searchingAPI, setSearchingAPI] = useState(false);
 
   const [todos, setTodos] = useState({});
   const { user } = useAuth();
@@ -100,12 +95,32 @@ export default function Index() {
     }
   }, [currentMonth, location]);
 
-  useEffect(() => {
-    const filtered = filterCities(searchQuery, POPULAR_CITIES);
-    setFilteredCities(filtered);
-  }, [searchQuery]);
-
   const getLocationAndWeather = async () => {
+    // Check if GPS is already enabled
+    const gpsEnabled = await isGPSEnabled();
+
+    if (gpsEnabled) {
+      // GPS is on, use it directly without asking
+      const result = await getCurrentLocationIfEnabled();
+
+      if (result.location) {
+        setLocation(result.location);
+        setLocationName(result.locationName);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // GPS not enabled, try to get saved location
+    const savedLocation = await getSavedLocation();
+    if (savedLocation) {
+      setLocation(savedLocation.location);
+      setLocationName(savedLocation.locationName);
+      setLoading(false);
+      return;
+    }
+
+    // No GPS and no cached location, request GPS permission
     const result = await getCurrentLocation();
 
     if (result.error || !result.location) {
@@ -118,43 +133,13 @@ export default function Index() {
     setLocationName(result.locationName);
   };
 
-  const searchCityFromAPI = async () => {
-    if (!searchQuery.trim()) {
-      Alert.alert("Error", "Please enter a city name");
-      return;
-    }
-
-    setSearchingAPI(true);
-    try {
-      const cities = await searchCitiesFromAPI(searchQuery);
-
-      if (cities.length > 0) {
-        setFilteredCities(cities);
-      } else {
-        Alert.alert(
-          "Not Found",
-          "No cities found. Try a different search term."
-        );
-        setFilteredCities([]);
-      }
-    } catch (error) {
-      Alert.alert(
-        "Error",
-        error instanceof Error ? error.message : "Failed to search cities"
-      );
-    } finally {
-      setSearchingAPI(false);
-    }
-  };
-
-  const selectCity = (city: CitySearchResult) => {
-    setLocation({
-      latitude: city.lat,
-      longitude: city.lng,
-    });
-    setLocationName(city.city || city.name);
+  const handleCitySelect = (
+    newLocation: LocationCoords,
+    newLocationName: string
+  ) => {
+    setLocation(newLocation);
+    setLocationName(newLocationName);
     setShowLocationModal(false);
-    setSearchQuery("");
   };
 
   const getDaysInMonth = (date: Date) => {
@@ -245,15 +230,6 @@ export default function Index() {
     setCurrentMonth(newDate);
   };
 
-  const renderCityItem = ({ item }: { item: CitySearchResult }) => (
-    <TouchableOpacity style={styles.cityItem} onPress={() => selectCity(item)}>
-      <Text style={styles.cityName}>{item.name}</Text>
-      <Text style={styles.cityCoords}>
-        {item.lat.toFixed(2)}, {item.lng.toFixed(2)}
-      </Text>
-    </TouchableOpacity>
-  );
-
   return (
     <>
       <ScrollView style={styles.container}>
@@ -311,83 +287,30 @@ export default function Index() {
           <Text style={styles.legendItem}>🌧️ Rain 🌨️ Snow ⛈️ Thunderstorm</Text>
           <Text style={styles.legendNote}>💧 = Precipitation probability</Text>
 
-          <Text style={[styles.legendTitle, { marginTop: 15 }]}>
-            Todo Legend:
-          </Text>
           <View style={styles.todoLegend}>
+            <Text style={styles.legendTitle}>Task Legend:</Text>
             <View style={styles.todoLegendItem}>
-              <Text style={styles.todoTotal}>5</Text>
-              <Text style={styles.legendItem}> = Total Tasks</Text>
+              <Text style={styles.todoTotal}>●</Text>
+              <Text style={styles.legendItem}> Total Tasks</Text>
             </View>
             <View style={styles.todoLegendItem}>
-              <Text style={styles.todoCompleted}>3</Text>
-              <Text style={styles.legendItem}> = Completed</Text>
+              <Text style={styles.todoCompleted}>●</Text>
+              <Text style={styles.legendItem}> Completed Tasks</Text>
             </View>
             <View style={styles.todoLegendItem}>
-              <Text style={styles.todoDue}>1</Text>
-              <Text style={styles.legendItem}> = Due</Text>
+              <Text style={styles.todoDue}>●</Text>
+              <Text style={styles.legendItem}> Due/Pending Tasks</Text>
             </View>
           </View>
         </View>
       </ScrollView>
 
-      <Modal
+      <CitySelect
         visible={showLocationModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          if (location) {
-            setShowLocationModal(false);
-          }
-        }}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select Location</Text>
-
-            <View style={styles.searchContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search city (e.g., Dhaka, Tokyo)"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={searchCityFromAPI}
-              />
-              <Button
-                mode="contained"
-                onPress={searchCityFromAPI}
-                loading={searchingAPI}
-                disabled={searchingAPI}
-                style={styles.searchButton}
-              >
-                Search
-              </Button>
-            </View>
-
-            <FlatList
-              data={filteredCities}
-              renderItem={renderCityItem}
-              keyExtractor={(item, index) => index.toString()}
-              style={styles.cityList}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>
-                  {searchQuery ? "No cities found" : "Start typing to search"}
-                </Text>
-              }
-            />
-
-            {location && (
-              <Button
-                mode="text"
-                onPress={() => setShowLocationModal(false)}
-                style={styles.closeButton}
-              >
-                Close
-              </Button>
-            )}
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowLocationModal(false)}
+        onSelectCity={handleCitySelect}
+        currentLocation={location}
+      />
     </>
   );
 }
@@ -573,69 +496,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 6,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    width: "90%",
-    maxWidth: 500,
-    maxHeight: "80%",
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    marginBottom: 15,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-  },
-  searchButton: {
-    justifyContent: "center",
-  },
-  cityList: {
-    maxHeight: 400,
-  },
-  cityItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  cityName: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 4,
-  },
-  cityCoords: {
-    fontSize: 12,
-    color: "#999",
-  },
-  emptyText: {
-    textAlign: "center",
-    color: "#999",
-    marginTop: 20,
-    fontSize: 14,
-  },
-  closeButton: {
-    marginTop: 10,
   },
 });

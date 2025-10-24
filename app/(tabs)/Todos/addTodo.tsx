@@ -1,5 +1,6 @@
-import { useDb } from "@/lib/appwrite";
 import { useAuth } from "@/lib/auth-context";
+import { useDb } from "@/lib/dbActions";
+import { sendLocalNotification } from "@/services/notificationService";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
@@ -67,7 +68,10 @@ export default function AddTodo() {
       };
 
       await DB.todo.create(todoData);
-
+      sendLocalNotification(
+        "Todo Created",
+        `Your todo "${title}" has been created.`
+      );
       Alert.alert("Success", "Todo created successfully!", [
         {
           text: "OK",

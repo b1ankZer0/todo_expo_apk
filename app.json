@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Weather Todo",
-    "slug": "Weather Todo",
+    "slug": "WeatherTodo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/9329651.png",
@@ -24,11 +24,12 @@
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "useNextNotificationsApi": true,
       "package": "com.masashikbd.test"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/9329651.png"
     },
     "plugins": [
       "expo-router",
@@ -43,7 +44,16 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/9329651.png",
+          "color": "#ffffff"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -52,7 +62,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b7625a2d-fe78-425b-bf4e-f94f21eb8238"
+        "projectId": "7f960994-2eb8-420e-bbb4-3dfb11b63bb6"
       }
     }
   }

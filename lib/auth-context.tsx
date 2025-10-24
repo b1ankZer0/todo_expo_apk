@@ -1,5 +1,5 @@
-import { ID, Models } from "appwrite";
 import { createContext, useContext, useEffect, useState } from "react";
+import { ID, Models } from "react-native-appwrite";
 import { account } from "./appwrite";
 
 type AuthContextType = {
