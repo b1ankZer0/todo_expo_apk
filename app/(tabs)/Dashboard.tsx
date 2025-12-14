@@ -1,5 +1,6 @@
 import { useAuth } from "@/lib/auth-context";
 import { useDb } from "@/lib/dbActions";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,11 +17,19 @@ import {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const DB = useDb();
+
+  const navigateToTodos = (filter: string) => {
+    router.push({
+      pathname: "/(tabs)/Todos/[todo]",
+      params: { filter, fromPage: "dashboard" },
+    });
+  };
 
   useEffect(() => {
     if (user) {
@@ -90,25 +99,41 @@ export default function Dashboard() {
 
       {/* Overview Cards */}
       <View style={styles.overviewContainer}>
-        <View style={[styles.card, styles.cardPrimary]}>
+        <TouchableOpacity
+          style={[styles.card, styles.cardPrimary]}
+          onPress={() => navigateToTodos("all")}
+          activeOpacity={0.7}
+        >
           <Text style={styles.cardNumber}>{stats.totalTodos}</Text>
           <Text style={styles.cardLabel}>Total Tasks</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.card, styles.cardSuccess]}>
+        <TouchableOpacity
+          style={[styles.card, styles.cardSuccess]}
+          onPress={() => navigateToTodos("completed")}
+          activeOpacity={0.7}
+        >
           <Text style={styles.cardNumber}>{stats.completedTodos}</Text>
           <Text style={styles.cardLabel}>Completed</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.card, styles.cardWarning]}>
+        <TouchableOpacity
+          style={[styles.card, styles.cardWarning]}
+          onPress={() => navigateToTodos("pending")}
+          activeOpacity={0.7}
+        >
           <Text style={styles.cardNumber}>{stats.pendingTodos}</Text>
           <Text style={styles.cardLabel}>Pending</Text>
-        </View>
+        </TouchableOpacity>
 
-        <View style={[styles.card, styles.cardDanger]}>
+        <TouchableOpacity
+          style={[styles.card, styles.cardDanger]}
+          onPress={() => navigateToTodos("overdue")}
+          activeOpacity={0.7}
+        >
           <Text style={styles.cardNumber}>{stats.overdueTodos}</Text>
           <Text style={styles.cardLabel}>Overdue</Text>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Completion Rate */}
@@ -152,27 +177,39 @@ export default function Dashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tasks by Priority</Text>
         <View style={styles.priorityContainer}>
-          <View style={styles.priorityItem}>
+          <TouchableOpacity
+            style={styles.priorityItem}
+            onPress={() => navigateToTodos("low")}
+            activeOpacity={0.7}
+          >
             <View style={[styles.priorityDot, styles.priorityLow]} />
             <Text style={styles.priorityLabel}>Low</Text>
             <Text style={styles.priorityCount}>
               {stats.todosByPriority.low}
             </Text>
-          </View>
-          <View style={styles.priorityItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.priorityItem}
+            onPress={() => navigateToTodos("medium")}
+            activeOpacity={0.7}
+          >
             <View style={[styles.priorityDot, styles.priorityMedium]} />
             <Text style={styles.priorityLabel}>Medium</Text>
             <Text style={styles.priorityCount}>
               {stats.todosByPriority.medium}
             </Text>
-          </View>
-          <View style={styles.priorityItem}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.priorityItem}
+            onPress={() => navigateToTodos("high")}
+            activeOpacity={0.7}
+          >
             <View style={[styles.priorityDot, styles.priorityHigh]} />
             <Text style={styles.priorityLabel}>High</Text>
             <Text style={styles.priorityCount}>
               {stats.todosByPriority.high}
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 

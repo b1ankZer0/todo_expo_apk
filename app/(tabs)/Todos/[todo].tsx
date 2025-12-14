@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -23,25 +24,52 @@ export interface Todo {
   status: "pending" | "completed";
   priority: "low" | "medium" | "high";
   date: string;
+  time?: string; // Optional time field in HH:MM format
   $createdAt: string;
   $updatedAt: string;
 }
 
 export default function TodoDetail() {
-  const { date } = useLocalSearchParams();
+  const { date, filter, fromPage } = useLocalSearchParams();
   const router = useRouter();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { user } = useAuth();
 
-  const parsedDate = new Date(date as string);
-  const formattedDate = parsedDate.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const getTitle = () => {
+    if (filter) {
+      switch (filter) {
+        case "pending":
+          return "Pending Todos";
+        case "completed":
+          return "Completed Todos";
+        case "overdue":
+          return "Overdue Todos";
+        case "high":
+          return "High Priority";
+        case "medium":
+          return "Medium Priority";
+        case "low":
+          return "Low Priority";
+        default:
+          return "Todos";
+      }
+    }
+    return "Todos";
+  };
+
+  const parsedDate = date ? new Date(date as string) : null;
+  const formattedDate = parsedDate
+    ? parsedDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : filter
+    ? `All ${getTitle()}`
+    : "All Todos";
 
   useEffect(() => {
     const subscription = Db.todo.subscribe((payload) => {
@@ -60,12 +88,59 @@ export default function TodoDetail() {
   const fetchTodos = async () => {
     setLoading(true);
     try {
-      const todos = await Db.todo.getAll([
+      let queries = [
         Query.equal("user_id", user.$id),
-        Query.equal("date", date),
-      ]);
+        Query.orderDesc("$createdAt"),
+      ];
 
-      setTodos(todos.documents);
+      // Add date filter if provided
+      if (date) {
+        queries.push(Query.equal("date", date));
+      }
+
+      const response = await Db.todo.getAll(queries);
+      let filteredTodos = response.documents;
+
+      // Apply additional filters based on filter parameter
+      if (filter) {
+        switch (filter) {
+          case "pending":
+            filteredTodos = filteredTodos.filter(
+              (todo: any) => todo.status === "pending"
+            );
+            break;
+          case "completed":
+            filteredTodos = filteredTodos.filter(
+              (todo: any) => todo.status === "completed"
+            );
+            break;
+          case "overdue":
+            filteredTodos = filteredTodos.filter((todo: any) => {
+              const todoDate = new Date(todo.date);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return todoDate < today && todo.status === "pending";
+            });
+            break;
+          case "high":
+            filteredTodos = filteredTodos.filter(
+              (todo: any) => todo.priority === "high"
+            );
+            break;
+          case "medium":
+            filteredTodos = filteredTodos.filter(
+              (todo: any) => todo.priority === "medium"
+            );
+            break;
+          case "low":
+            filteredTodos = filteredTodos.filter(
+              (todo: any) => todo.priority === "low"
+            );
+            break;
+        }
+      }
+
+      setTodos(filteredTodos);
     } catch (error) {
       console.error("Error fetching todos:", error);
     } finally {
@@ -134,6 +209,32 @@ export default function TodoDetail() {
     }
   };
 
+  const handleDeleteTodo = async (todoId: string, todoTitle: string) => {
+    Alert.alert(
+      "Delete Todo",
+      `Are you sure you want to delete "${todoTitle}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await Db.todo.delete(todoId);
+              setTodos((prevTodos) => prevTodos.filter((t) => t.$id !== todoId));
+            } catch (error) {
+              console.error("Error deleting todo:", error);
+              Alert.alert("Error", "Failed to delete todo");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderTodoItem = ({ item }: { item: Todo }) => (
     <TouchableOpacity
       style={[
@@ -165,13 +266,21 @@ export default function TodoDetail() {
           >
             {item.title}
           </Text>
-          <View
-            style={[
-              styles.priorityBadge,
-              { backgroundColor: getPriorityColor(item.priority) },
-            ]}
-          >
-            <Text style={styles.priorityText}>{item.priority}</Text>
+          <View style={styles.headerActions}>
+            <View
+              style={[
+                styles.priorityBadge,
+                { backgroundColor: getPriorityColor(item.priority) },
+              ]}
+            >
+              <Text style={styles.priorityText}>{item.priority}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => handleDeleteTodo(item.$id, item.title)}
+              style={styles.deleteButton}
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -188,6 +297,12 @@ export default function TodoDetail() {
         )}
 
         <View style={styles.todoFooter}>
+          {item.time && (
+            <View style={styles.timeBadge}>
+              <Ionicons name="time-outline" size={14} color="#666" />
+              <Text style={styles.timeText}>{item.time}</Text>
+            </View>
+          )}
           <View style={styles.statusBadge}>
             <Text style={styles.statusText}>{item.status}</Text>
           </View>
@@ -210,13 +325,21 @@ export default function TodoDetail() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => {
+            if (fromPage === "dashboard") {
+              router.push("/(tabs)/Dashboard");
+            } else if (fromPage === "calendar") {
+              router.push("/(tabs)/");
+            } else {
+              router.back();
+            }
+          }}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
-          <Text style={styles.title}>Todos</Text>
+          <Text style={styles.title}>{getTitle()}</Text>
           <Text style={styles.dateText}>{formattedDate}</Text>
         </View>
       </View>
@@ -321,6 +444,14 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deleteButton: {
+    padding: 4,
+  },
   todoTitleCompleted: {
     textDecorationLine: "line-through",
     color: "#9ca3af",
@@ -348,6 +479,21 @@ const styles = StyleSheet.create({
   todoFooter: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#e0f2fe",
+  },
+  timeText: {
+    fontSize: 11,
+    color: "#0284c7",
+    fontWeight: "500",
   },
   statusBadge: {
     backgroundColor: "#f3f4f6",

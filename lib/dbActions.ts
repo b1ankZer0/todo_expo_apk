@@ -6,6 +6,7 @@ import { useAuth } from "./auth-context";
 const serverData = {
   DB_ID: "68ecaa8d002c230b9323",
   DB_TODOS: "todos",
+  DB_WEATHER: "weather",
 };
 
 interface SubscribePayload {
@@ -85,6 +86,7 @@ export const createDb = (userId?: string): DbReturnType => {
 
   const tables: Tables = {
     todo: serverData.DB_TODOS!,
+    weather: serverData.DB_WEATHER!,
   };
 
   const db: DbReturnType = {};
@@ -98,6 +100,7 @@ export const createDb = (userId?: string): DbReturnType => {
 
 // Alternative: Export individual table actions directly
 export const TodoDb = dbActions(serverData.DB_TODOS!);
+export const WeatherDb = dbActions(serverData.DB_WEATHER!);
 
 export const useDb = (): DbReturnType => {
   const { user } = useAuth();
@@ -109,6 +112,7 @@ export const useDb = (): DbReturnType => {
 
   const tables: Tables = {
     todo: serverData.DB_TODOS!,
+    weather: serverData.DB_WEATHER!,
   };
 
   const db: DbReturnType = {};

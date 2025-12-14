@@ -7,6 +7,7 @@ export interface Todo {
   title: string;
   status: string;
   date: string; // ISO date string
+  time?: string; // Optional time in HH:MM format
   priority?: "low" | "medium" | "high";
   category?: string;
   userId: string;

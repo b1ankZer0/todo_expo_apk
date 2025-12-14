@@ -33,6 +33,7 @@ export default function AddTodo() {
   const [selectedDate, setSelectedDate] = useState(
     date ? new Date(date as string) : new Date()
   );
+  const [selectedTime, setSelectedTime] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [status, setStatus] = useState<Status>("pending");
   const [loading, setLoading] = useState(false);
@@ -40,6 +41,19 @@ export default function AddTodo() {
 
   const priorities: Priority[] = ["low", "medium", "high"];
   const statuses: Status[] = ["pending", "completed"];
+
+  // Generate time options for dropdown (every 30 minutes)
+  const generateTimeOptions = () => {
+    const times = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const h = hour.toString().padStart(2, "0");
+        const m = minute.toString().padStart(2, "0");
+        times.push(`${h}:${m}`);
+      }
+    }
+    return times;
+  };
 
   const handleSubmit = async () => {
     // Validation
@@ -63,6 +77,7 @@ export default function AddTodo() {
         title: title.trim(),
         details: details.trim() || null,
         date: selectedDate.toISOString(), // Format: YYYY-MM-DD
+        time: selectedTime.trim() || null,
         priority: priority,
         status: status,
       };
@@ -78,7 +93,6 @@ export default function AddTodo() {
           onPress: () => router.back(),
         },
       ]);
-      router.back();
     } catch (error) {
       console.error("Error creating todo:", error);
       Alert.alert("Error", "Failed to create todo. Please try again.");
@@ -163,6 +177,50 @@ export default function AddTodo() {
             textAlignVertical="top"
           />
           <Text style={styles.charCount}>{details.length}/3000</Text>
+        </View>
+
+        {/* Time Field - Dropdown */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Time (Optional)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.timePickerContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.timeOption,
+                  selectedTime === "" && styles.timeOptionSelected,
+                ]}
+                onPress={() => setSelectedTime("")}
+              >
+                <Text
+                  style={[
+                    styles.timeOptionText,
+                    selectedTime === "" && styles.timeOptionTextSelected,
+                  ]}
+                >
+                  No Time
+                </Text>
+              </TouchableOpacity>
+              {generateTimeOptions().map((time) => (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.timeOption,
+                    selectedTime === time && styles.timeOptionSelected,
+                  ]}
+                  onPress={() => setSelectedTime(time)}
+                >
+                  <Text
+                    style={[
+                      styles.timeOptionText,
+                      selectedTime === time && styles.timeOptionTextSelected,
+                    ]}
+                  >
+                    {time}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
         </View>
 
         {/* Date Field */}
@@ -365,6 +423,32 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
+  },
+  timePickerContainer: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 8,
+  },
+  timeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  timeOptionSelected: {
+    backgroundColor: "#2196F3",
+    borderColor: "#2196F3",
+  },
+  timeOptionText: {
+    fontSize: 14,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  timeOptionTextSelected: {
+    color: "#fff",
     fontWeight: "600",
   },
 });

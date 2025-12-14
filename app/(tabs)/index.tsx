@@ -168,7 +168,7 @@ export default function Index() {
     const goToTodo = (date: string) => {
       route.push({
         pathname: "/Todos/[todo]",
-        params: { date: date },
+        params: { date: date, fromPage: "calendar" },
       });
     };
 

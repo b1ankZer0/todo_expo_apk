@@ -1,5 +1,6 @@
 import { Alert } from "react-native";
 import { LocationCoords } from "./locationService";
+import { saveWeatherData } from "./weatherDbService";
 
 export interface WeatherData {
   tempMax: number;
@@ -37,6 +38,8 @@ const fetchWeatherForDate = async (
 
     const dateString = formatDate(targetDate);
 
+    let weatherData: WeatherDataDay | null = null;
+
     // Check if date is in the past or today
     if (targetDate <= today) {
       // Use Archive API for past dates
@@ -47,7 +50,7 @@ const fetchWeatherForDate = async (
       const data = await response.json();
 
       if (data.daily && data.daily.time.length > 0) {
-        return {
+        weatherData = {
           tempMax: Math.round(data.daily.temperature_2m_max[0]),
           tempMin: Math.round(data.daily.temperature_2m_min[0]),
           precipitation: data.daily.precipitation_probability_max?.[0] || 0,
@@ -80,7 +83,7 @@ const fetchWeatherForDate = async (
         );
 
         if (dateIndex !== -1) {
-          return {
+          weatherData = {
             tempMax: Math.round(data.daily.temperature_2m_max[dateIndex]),
             tempMin: Math.round(data.daily.temperature_2m_min[dateIndex]),
             precipitation:
@@ -92,7 +95,17 @@ const fetchWeatherForDate = async (
       }
     }
 
-    return null;
+    // Save to Appwrite if weather data was fetched
+    if (weatherData) {
+      try {
+        await saveWeatherData(weatherData, latitude, longitude);
+      } catch (error) {
+        console.error("Error saving weather data to DB:", error);
+        // Don't throw error here, just log it
+      }
+    }
+
+    return weatherData;
   } catch (error) {
     console.error("Error fetching weather for date:", error);
     return null;
@@ -118,18 +131,40 @@ export const fetchWeatherForMonth = async (
     const data = await response.json();
 
     const weatherMap: WeatherMap = {};
+    const weatherDataArray: WeatherDataDay[] = [];
+    
     if (data.daily) {
       data.daily.time.forEach((date: string, index: number) => {
-        weatherMap[date] = {
+        const weatherData = {
           tempMax: Math.round(data.daily.temperature_2m_max[index]),
           tempMin: Math.round(data.daily.temperature_2m_min[index]),
           precipitation: data.daily.precipitation_probability_max[index],
           weatherCode: data.daily.weathercode[index],
         };
+        
+        weatherMap[date] = weatherData;
+        
+        weatherDataArray.push({
+          ...weatherData,
+          date,
+        });
       });
     }
 
     setWeatherData(weatherMap);
+
+    // Save weather data to Appwrite
+    if (weatherDataArray.length > 0) {
+      try {
+        // Save each weather data record
+        for (const weatherData of weatherDataArray) {
+          await saveWeatherData(weatherData, location.latitude, location.longitude);
+        }
+      } catch (error) {
+        console.error("Error saving weather data to DB:", error);
+        // Don't throw error here, just log it
+      }
+    }
   } catch (error) {
     console.error("Error fetching weather:", error);
     Alert.alert("Error", "Failed to fetch weather data");
